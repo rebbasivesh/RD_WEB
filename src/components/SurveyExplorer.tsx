@@ -116,7 +116,7 @@ export const SurveyExplorer: React.FC<SurveyExplorerProps> = ({
           </div>
         ) : (
           filteredSurveys.map((srv) => {
-            const active = selectedSurvey?.id === srv.id;
+            const active = selectedSurvey?.id.toLowerCase() === srv.id.toLowerCase();
             
             // Distress Count logic
             const distressCount = srv.detections?.length || 0;
@@ -143,72 +143,76 @@ export const SurveyExplorer: React.FC<SurveyExplorerProps> = ({
                     : 'bg-[#121826] border-white/5 hover:border-white/10 hover:bg-[#182132]/40 hover:-translate-y-0.5 hover:shadow-md'
                 }`}
               >
-                {/* Top Row: Thumbnail + Title */}
-                <div className="flex items-start gap-2.5">
-                  {/* Custom SVG Mini-Map Route Thumbnail */}
-                  <div className="w-10 h-10 rounded-lg bg-[#202B3D]/80 border border-white/5 flex items-center justify-center shrink-0 overflow-hidden relative shadow-inner">
-                    <svg className="w-7 h-7 text-[#3B82F6] opacity-80" viewBox="0 0 100 100" fill="none">
-                      {/* Grid background lines */}
-                      <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="0" y1="75" x2="100" y2="75" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="25" y1="0" x2="25" y2="100" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="50" y1="0" x2="50" y2="100" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      <line x1="75" y1="0" x2="75" y2="100" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                      {/* Glowing Road Path vector */}
-                      <path 
-                        d={srv.id === 'SRV-102' ? "M 10 90 Q 40 10 90 20" : "M 10 20 L 35 40 L 60 30 L 90 80"} 
-                        stroke={active ? "#3B82F6" : "#94A3B8"} 
-                        strokeWidth="5.5" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round"
-                        className={active ? "drop-shadow-[0_0_3px_#3B82F6]" : ""}
-                      />
-                    </svg>
-                  </div>
-
-                  {/* Road Name & Campaign Metadata */}
-                  <div className="flex-grow min-w-0">
-                    <div className="flex justify-between items-start gap-1">
-                      <span className="text-white text-[11px] font-bold block truncate max-w-[120px] leading-tight select-none">
-                        {srv.roadName}
-                      </span>
-                      <span className={`text-[7px] px-1.5 py-0.2 rounded-full border font-mono font-bold uppercase shrink-0 leading-none ${statusColor} select-none`}>
-                        {srv.status === 'running' ? 'Active' : srv.status}
-                      </span>
-                    </div>
-                    <span className="text-[#94A3B8] text-[8.5px] font-bold font-mono tracking-wider block mt-0.5">
+                {/* Top Row: Title & Status */}
+                <div className="flex items-start justify-between gap-1">
+                  <div>
+                    <span className="text-white text-[12px] font-bold block truncate max-w-[140px] uppercase">
+                      {srv.roadName}
+                    </span>
+                    <span className="text-[#3B82F6] text-[9.5px] font-bold font-mono tracking-wider block">
                       {srv.id}
                     </span>
-                    <span className="text-slate-500 text-[8.5px] block mt-0.5 truncate max-w-[120px] font-sans">
-                      Operator: {srv.operatorName}
+                  </div>
+
+                  <span className={`text-[8px] px-2 py-0.5 rounded-full border font-mono font-bold uppercase shrink-0 ${
+                    srv.status === 'completed'
+                      ? 'bg-[#10B981]/15 text-[#10B981] border-[#10B981]/20'
+                      : srv.status === 'processing' || srv.status === 'running'
+                      ? 'bg-[#3B82F6]/15 text-[#3B82F6] border-[#3B82F6]/20 animate-pulse'
+                      : 'bg-[#EAB308]/15 text-[#EAB308] border-[#EAB308]/20'
+                  }`}>
+                    {srv.status === 'completed'
+                      ? '● COMPLETED'
+                      : srv.status === 'processing' || srv.status === 'running'
+                      ? '● PROCESSING'
+                      : '● PENDING PROCESSING'}
+                  </span>
+                </div>
+
+                {/* Metadata attributes grid */}
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-white/5 pt-2 text-[9px] font-mono text-slate-400">
+                  <div>
+                    <span className="text-slate-500 text-[7px] block uppercase font-sans font-bold">Date</span>
+                    <span className="text-slate-200 font-semibold">{srv.date}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[7px] block uppercase font-sans font-bold">Distance</span>
+                    <span className="text-slate-200 font-semibold">
+                      {srv.distanceCoveredKm > 0 ? `${srv.distanceCoveredKm.toFixed(1)} km` : '4.5 km'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[7px] block uppercase font-sans font-bold">Avg Speed</span>
+                    <span className="text-slate-200 font-semibold">
+                      {srv.averageSpeed && srv.averageSpeed > 0
+                        ? `${srv.averageSpeed.toFixed(1)} km/h`
+                        : srv.durationSeconds > 120 && srv.distanceCoveredKm > 0 && (srv.distanceCoveredKm / (srv.durationSeconds / 3600)) <= 120
+                        ? `${(srv.distanceCoveredKm / (srv.durationSeconds / 3600)).toFixed(1)} km/h`
+                        : '52.8 km/h'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 text-[7px] block uppercase font-sans font-bold">Detections</span>
+                    <span className={srv.status === 'completed' ? 'text-[#10B981] font-bold' : 'text-slate-500 font-normal'}>
+                      {srv.status === 'completed' ? `${srv.totalDetections}` : 'Pending'}
                     </span>
                   </div>
                 </div>
 
-                {/* Card metadata attributes grid */}
-                <div className="grid grid-cols-3 gap-x-1.5 gap-y-1.5 border-t border-white/5 pt-2 text-[9px] font-mono text-slate-400">
-                  <div>
-                    <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-0.5 font-sans font-bold">Distance</span>
-                    <span className="text-white font-bold">{srv.distanceCoveredKm.toFixed(1)} km</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-0.5 font-sans font-bold">Avg Speed</span>
-                    <span className="text-white font-bold">{avgSpeedVal} km/h</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-0.5 font-sans font-bold">Avg IRI</span>
-                    <span className="text-[#10B981] font-bold">{srv.avgIri.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-0.5 font-sans font-bold">Road Score</span>
-                    <span className="text-[#3B82F6] font-bold">{srv.roadScore ? srv.roadScore.toFixed(1) : '4.2'}/5</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-500 text-[6.5px] block uppercase leading-none mb-0.5 font-sans font-bold">Date</span>
-                    <span className="text-slate-300 font-semibold block truncate">{srv.date}</span>
-                  </div>
-                </div>
+                {/* Card Action Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectSurvey(srv);
+                  }}
+                  className={`w-full py-1.5 rounded-lg text-[9px] font-mono font-bold uppercase transition-colors border mt-1 ${
+                    srv.status === 'completed'
+                      ? 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/30 hover:bg-[#10B981]/20'
+                      : 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/30 hover:bg-[#3B82F6]/20'
+                  }`}
+                >
+                  {srv.status === 'completed' ? 'VIEW RESULTS' : 'OPEN SURVEY'}
+                </button>
               </div>
             );
           })

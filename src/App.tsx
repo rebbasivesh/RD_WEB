@@ -1,24 +1,32 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
-import { SurveySummaryBar } from './components/SurveySummaryBar';
 import { GISWorkspace } from './components/GISWorkspace';
 import { SurveyExplorer } from './components/SurveyExplorer';
+import { SurveyExplorerPage } from './components/SurveyExplorerPage';
 import { InspectionWorkspace } from './components/InspectionWorkspace';
-import { DefectSummaryCards } from './components/DefectSummaryCards';
 
-// Existing sub-views for settings, users, devices, reports, projects
+// Views for settings, users, devices, reports, survey history, permissions
 import { SettingsView } from './components/SettingsView';
 import { UsersView } from './components/UsersView';
+import { PermissionsView } from './components/PermissionsView';
 import { DevicesView } from './components/DevicesView';
 import { ReportsView } from './components/ReportsView';
 import { HistoryView } from './components/HistoryView';
 
-import type { Survey, Detection, GpsCoords } from './types';
-import { mockSurveys, mockPathCoordinates, mockDetections } from './mockData';
-import { X } from 'lucide-react';
+import { LoginPage } from './components/LoginPage';
+
+import type { Survey, Detection, UserItem } from './types';
+import { mockSurveys } from './mockData';
+import { fetchSurveys, triggerProcessSurvey, fetchSurveyStatus, getMeApi, logoutApi } from './services/api';
 
 function App() {
+  // Authentication State
+  const [authToken, setAuthToken] = useState<string | null>(
+    sessionStorage.getItem('dats_token') || localStorage.getItem('dats_token')
+  );
+  const [currentUser, setCurrentUser] = useState<UserItem | null>(null);
+
   // Navigation states
   const [activeTab, setActiveTab] = useState<string>('gis_workspace');
   const [bottomTab, setBottomTab] = useState<string>('Survey Details');
@@ -28,13 +36,81 @@ function App() {
 
   // Survey Data state
   const [surveys, setSurveys] = useState<Survey[]>(mockSurveys);
+  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(mockSurveys[0]);
 
-  const handleDeleteSurvey = (id: string) => {
-    setSurveys((prev) => prev.filter((s) => s.id !== id));
+  // Session verification on mount
+  useEffect(() => {
+    if (authToken) {
+      getMeApi()
+        .then((data) => {
+          setCurrentUser(data.user);
+        })
+        .catch(() => {
+          setAuthToken(null);
+          sessionStorage.removeItem('dats_token');
+          localStorage.removeItem('dats_token');
+        });
+    }
+  }, [authToken]);
+
+  const handleLogout = async () => {
+    await logoutApi();
+    setAuthToken(null);
+    setCurrentUser(null);
+    setActiveTab('gis_workspace');
+    setActiveModal(null);
   };
 
-  // Survey Inspection state
-  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(mockSurveys[0]);
+  const loadSurveysFromBackend = () => {
+    fetchSurveys().then((realSurveys) => {
+      if (realSurveys && realSurveys.length > 0) {
+        setSurveys(realSurveys);
+        if (selectedSurvey) {
+          const updatedSelected = realSurveys.find(s => s.id.toLowerCase() === selectedSurvey.id.toLowerCase());
+          if (updatedSelected) setSelectedSurvey(updatedSelected);
+        } else {
+          setSelectedSurvey(realSurveys[0]);
+        }
+      }
+    });
+  };
+
+  useEffect(() => {
+    loadSurveysFromBackend();
+  }, []);
+
+  const handleProcessSurvey = async (surveyId: string) => {
+    setSurveys(prev => prev.map(s => s.id.toLowerCase() === surveyId.toLowerCase() ? { ...s, status: 'processing' } : s));
+    if (selectedSurvey && selectedSurvey.id.toLowerCase() === surveyId.toLowerCase()) {
+      setSelectedSurvey(prev => prev ? { ...prev, status: 'processing' } : null);
+    }
+
+    const ok = await triggerProcessSurvey(surveyId);
+    if (!ok) {
+      alert(`Could not start processing for survey ${surveyId}`);
+      return;
+    }
+
+    const pollTimer = setInterval(async () => {
+      const currentStatus = await fetchSurveyStatus(surveyId);
+      if (currentStatus === 'completed') {
+        clearInterval(pollTimer);
+        loadSurveysFromBackend();
+      } else if (currentStatus === 'failed') {
+        clearInterval(pollTimer);
+        alert(`Processing failed for survey ${surveyId}`);
+        loadSurveysFromBackend();
+      }
+    }, 3000);
+  };
+
+  const handleDeleteSurvey = (id: string) => {
+    setSurveys(prev => prev.filter(s => s.id.toLowerCase() !== id.toLowerCase()));
+    if (selectedSurvey && selectedSurvey.id.toLowerCase() === id.toLowerCase()) {
+      setSelectedSurvey(surveys.find(s => s.id.toLowerCase() !== id.toLowerCase()) || null);
+    }
+  };
+
   const [playbackIndex, setPlaybackIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [selectedDetection, setSelectedDetection] = useState<Detection | null>(null);
@@ -57,17 +133,13 @@ function App() {
     setIsPlaying(false);
     setSelectedDetection(null);
 
-    // Sidebar items mapping to popups
-    if (['settings', 'users', 'edge_devices', 'survey_history'].includes(tab)) {
+    if (['settings', 'users', 'edge_devices', 'survey_history', 'reports'].includes(tab)) {
       setActiveModal(tab);
     } else {
       setActiveModal(null);
       if (tab === 'ai_detections') {
         setActiveTab('gis_workspace');
         setBottomTab('Road Distresses');
-      } else if (tab === 'reports') {
-        setActiveTab('gis_workspace');
-        setBottomTab('Reports');
       } else {
         setActiveTab(tab);
         setBottomTab('Survey Details');
@@ -83,8 +155,10 @@ function App() {
             iri: 1.45,
             score: 4.8
           });
-        } else if (tab === 'gis_workspace' || tab === 'survey_history') {
-          setSelectedSurvey(mockSurveys[0]);
+        } else if (tab === 'gis_workspace') {
+          if (surveys.length > 0 && !selectedSurvey) {
+            setSelectedSurvey(surveys[0]);
+          }
           setPlaybackIndex(0);
         }
       }
@@ -108,46 +182,49 @@ function App() {
         avgIri: liveStats.iri,
         avgPcr: 82,
         totalDetections: liveDetections.length,
-        gpsPath: mockPathCoordinates,
+        gpsPath: [
+          { lat: 16.3500, lng: 80.6000 },
+          { lat: 16.3512, lng: 80.6015 },
+          { lat: 16.3525, lng: 80.6030 },
+          { lat: 16.3538, lng: 80.6045 },
+          { lat: 16.3550, lng: 80.6060 },
+          { lat: 16.3562, lng: 80.6075 },
+          { lat: 16.3575, lng: 80.6090 }
+        ],
         detections: liveDetections,
-        assets: []
+        assets: [],
+        roadScore: liveStats.score
       };
     }
     return selectedSurvey;
   };
 
-  // Playback & Simulation Loop
+  // Simulated Live Survey Loop
   useEffect(() => {
+    let interval: any = null;
     if (!isPlaying) return;
 
-    const intervalTime = activeTab === 'live_survey' ? 1200 : 400;
+    const activeSurveyObj = getActiveSurvey();
+    if (!activeSurveyObj || !activeSurveyObj.gpsPath || activeSurveyObj.gpsPath.length === 0) return;
 
-    const interval = setInterval(() => {
-      const activeSurveyObj = getActiveSurvey();
-      if (!activeSurveyObj) return;
+    const pathLen = activeSurveyObj.gpsPath.length;
+    const intervalTime = activeTab === 'live_survey' ? 3000 : 1200;
 
-      const pathLength = activeSurveyObj.gpsPath.length;
-
+    interval = setInterval(() => {
       setPlaybackIndex((prev) => {
-        if (prev >= pathLength - 1) {
+        if (prev >= pathLen - 1) {
           setIsPlaying(false);
-          if (activeTab === 'live_survey') {
-            // Mark live survey as completed
-            setLiveStats(s => ({ ...s, status: 'completed' } as any));
-          }
           return prev;
         }
 
         const nextIndex = prev + 1;
         const currentCoord = activeSurveyObj.gpsPath[nextIndex];
 
-        // If in live mode, dynamically trigger AI distresses at specific checkpoints
         if (activeTab === 'live_survey') {
-          const distanceInc = (nextIndex) * 2.26; // Simulate distance covered
+          const distanceInc = (nextIndex) * 2.26;
           const calculatedIri = 1.35 + Math.sin(nextIndex * 0.4) * 0.7 + (nextIndex > 10 ? 1.3 : 0);
           const computedScore = Math.max(1.0, Math.min(5.0, 5.0 - (calculatedIri * 0.7)));
 
-          // Distress Spawning Logic
           let spawnedDet: Detection | null = null;
           let newPotholes = liveStats.potholes;
           let newLong = liveStats.longitudinal;
@@ -186,27 +263,17 @@ function App() {
               roadScore: 3
             };
             newLong++;
-          } else if (nextIndex === 15) {
-            spawnedDet = {
-              id: `det_live_4`,
-              timestamp: nowStr,
-              type: 'Transverse Crack',
-              confidence: 0.94,
-              location: currentCoord,
-              roadScore: 2
-            };
-            newTrans++;
           }
 
           if (spawnedDet) {
-            setLiveDetections(prevDets => [...prevDets, spawnedDet as Detection]);
+            setLiveDetections(prevDets => [...prevDets, spawnedDet!]);
             setSelectedDetection(spawnedDet);
           }
 
           setLiveStats({
             distance: distanceInc,
-            iri: calculatedIri,
-            score: computedScore,
+            iri: parseFloat(calculatedIri.toFixed(2)),
+            score: parseFloat(computedScore.toFixed(1)),
             potholes: newPotholes,
             longitudinal: newLong,
             transverse: newTrans,
@@ -221,9 +288,16 @@ function App() {
     return () => clearInterval(interval);
   }, [isPlaying, activeTab, liveStats]);
 
-  // Center Map Callback
   const handleCenterMap = (lat: number, lng: number) => {
-    // Handled by GISWorkspace listening to selectedDetection
+    // Handled by GISWorkspace
+  };
+
+  const refreshCurrentUser = () => {
+    if (authToken) {
+      getMeApi()
+        .then((data) => setCurrentUser(data.user))
+        .catch(() => {});
+    }
   };
 
   const renderModalContent = () => {
@@ -231,7 +305,9 @@ function App() {
       case 'settings':
         return <SettingsView />;
       case 'users':
-        return <UsersView />;
+        return <UsersView currentUser={currentUser} onRefreshCurrentUser={refreshCurrentUser} />;
+      case 'permissions':
+        return <PermissionsView currentUser={currentUser} />;
       case 'edge_devices':
         return <DevicesView />;
       case 'survey_history':
@@ -258,109 +334,151 @@ function App() {
 
   const activeSurveyData = getActiveSurvey();
 
+  const [bottomHeight, setBottomHeight] = useState<number>(320);
+  const [isResizing, setIsResizing] = useState<boolean>(false);
+
+  const handleMouseDownResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const newHeight = window.innerHeight - moveEvent.clientY;
+      const clamped = Math.max(40, Math.min(newHeight, window.innerHeight - 100));
+      setBottomHeight(clamped);
+      if (clamped > 60 && isBottomCollapsed) {
+        setIsBottomCollapsed(false);
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // AUTHENTICATION GATE
+  if (!authToken) {
+    return (
+      <LoginPage
+        onLoginSuccess={(token, user) => {
+          setAuthToken(token);
+          setCurrentUser(user);
+        }}
+      />
+    );
+  }
+
   return (
-    <div className="flex flex-col w-screen h-screen overflow-hidden bg-gis-bg text-slate-100 font-sans select-none relative">
-      {/* 1. TOP: Enterprise Navigation Bar (58px fixed) */}
-      <Navbar deviceConnected={deviceConnected} selectedSurvey={activeSurveyData} activeTab={activeTab} />
+    <div className={`flex flex-col w-screen h-screen overflow-hidden bg-gis-bg text-slate-100 font-sans select-none relative ${isResizing ? 'cursor-ns-resize' : ''}`}>
+      {/* 1. TOP: Enterprise Navigation Bar */}
+      <Navbar
+        deviceConnected={deviceConnected}
+        selectedSurvey={activeSurveyData}
+        activeTab={activeModal || activeTab}
+        currentUser={currentUser}
+        onLogout={handleLogout}
+      />
 
       {/* Main Section */}
       <div className="flex-1 flex overflow-hidden w-full h-[calc(100vh-60px)]">
-        {/* 2. LEFT: Application Navigation (collapsed 72px / expanded 220px) */}
+        {/* 2. LEFT: Application Navigation Sidebar */}
         <Sidebar
-          activeTab={activeTab === 'gis_workspace' || activeTab === 'survey_history' ? 'gis_workspace' : activeTab}
+          activeTab={activeModal || activeTab}
           setActiveTab={handleSelectTab}
           isCollapsed={isSidebarCollapsed}
           setIsCollapsed={setIsSidebarCollapsed}
+          currentUser={currentUser}
         />
 
         {/* Center, Right, Bottom Master Panel Container */}
         <div className="flex-1 flex flex-col overflow-hidden h-full relative min-w-0 bg-[#0C111A]">
-          
-
-          {/* Map + Explorer Horizontal splitter */}
-          <div className="flex-1 flex overflow-hidden w-full relative min-h-0">
-            {/* 3B. CENTER: GIS Workspace (Fills all remaining width dynamically) */}
-            <div className="flex-grow h-full flex flex-col relative min-h-0">
-              <GISWorkspace
-                selectedSurvey={activeSurveyData}
-                playbackIndex={playbackIndex}
-                setPlaybackIndex={setPlaybackIndex}
-                isPlaying={isPlaying}
-                setIsPlaying={setIsPlaying}
-                selectedDetection={selectedDetection}
-                onSelectDetection={setSelectedDetection}
-              />
-            </div>
-
-            {/* 4. RIGHT SIDEBAR: Survey Explorer (20% width) */}
-            {activeTab !== 'live_survey' && (
-              <div className="w-[20%] h-full flex flex-col relative border-l border-white/5 bg-[#0C111A] overflow-hidden shrink-0">
-                <SurveyExplorer
-                  surveys={surveys}
-                  selectedSurvey={activeSurveyData}
-                  onSelectSurvey={(srv) => {
-                    setSelectedSurvey(srv);
-                    setPlaybackIndex(0);
-                    setIsPlaying(false);
-                    setSelectedDetection(null);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* 5. BOTTOM: Inspection Workspace */}
-          <div className={`transition-all duration-350 ease-in-out shrink-0 overflow-hidden ${isBottomCollapsed ? 'h-[40px]' : 'h-[270px]'}`}>
-            <InspectionWorkspace
-              selectedSurvey={activeSurveyData}
-              playbackIndex={playbackIndex}
-              setPlaybackIndex={setPlaybackIndex}
-              isPlaying={isPlaying}
-              setIsPlaying={setIsPlaying}
-              onCenterMap={handleCenterMap}
-              onSelectDetection={setSelectedDetection}
-              selectedDetection={selectedDetection}
-              bottomTab={bottomTab}
-              setBottomTab={setBottomTab}
-              isCollapsed={isBottomCollapsed}
-              onToggleCollapse={() => setIsBottomCollapsed(!isBottomCollapsed)}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Floating System Admin Modal Overlays */}
-      {activeModal && (
-        <div className="fixed inset-0 bg-gis-bg/85 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className={`bg-gis-panel border border-gis-border rounded-xl w-full overflow-hidden shadow-2xl flex flex-col relative font-sans ${
-            activeModal === 'survey_history' ? 'max-w-[90vw] h-[85vh]' : 'max-w-4xl max-h-[85vh]'
-          }`}>
-            
-            {/* Modal Header */}
-            <div className="p-4 border-b border-gis-border bg-gis-bg/40 flex justify-between items-center shrink-0">
-              <div>
-                <span className="text-[9px] text-[#2563EB] font-bold uppercase tracking-wider block font-mono">
-                  PLATFORM SYSTEM PANEL
-                </span>
-                <h3 className="text-white text-[13px] font-black uppercase tracking-wide mt-0.5">
-                  {activeModal === 'survey_history' ? 'Survey History Log' : `${activeModal.replace('_', ' ')} Settings`}
-                </h3>
-              </div>
-              <button
-                onClick={() => setActiveModal(null)}
-                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors border border-gis-border"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Contents */}
-            <div className="flex-grow overflow-y-auto p-6 bg-gis-bg/10">
+          {activeModal ? (
+            <div className="flex-1 h-full w-full bg-[#0C111A] overflow-y-auto p-6 z-30 relative">
               {renderModalContent()}
             </div>
-          </div>
+          ) : activeTab === 'survey_explorer' ? (
+            <SurveyExplorerPage
+              surveys={surveys}
+              onSelectSurvey={(srv) => {
+                setSelectedSurvey(srv);
+                setPlaybackIndex(0);
+                setIsPlaying(false);
+                setSelectedDetection(null);
+                setActiveTab('gis_workspace');
+              }}
+            />
+          ) : (
+            <>
+              {/* Map + Explorer Horizontal splitter */}
+              <div className="flex-1 flex overflow-hidden w-full relative min-h-0">
+                {/* CENTER: GIS Workspace */}
+                <div className="flex-grow h-full flex flex-col relative min-h-0">
+                  <GISWorkspace
+                    selectedSurvey={activeSurveyData}
+                    playbackIndex={playbackIndex}
+                    setPlaybackIndex={setPlaybackIndex}
+                    isPlaying={isPlaying}
+                    setIsPlaying={setIsPlaying}
+                    selectedDetection={selectedDetection}
+                    onSelectDetection={setSelectedDetection}
+                  />
+                </div>
+
+                {/* RIGHT SIDEBAR: Survey Explorer */}
+                {activeTab !== 'live_survey' && (
+                  <div className="w-[20%] h-full flex flex-col relative border-l border-white/5 bg-[#0C111A] overflow-hidden shrink-0">
+                    <SurveyExplorer
+                      surveys={surveys}
+                      selectedSurvey={activeSurveyData}
+                      onSelectSurvey={(srv) => {
+                        setSelectedSurvey(srv);
+                        setPlaybackIndex(0);
+                        setIsPlaying(false);
+                        setSelectedDetection(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Drag Resize Handle Bar */}
+              <div
+                onMouseDown={handleMouseDownResize}
+                className="h-2 w-full bg-[#121826] hover:bg-[#3B82F6]/60 cursor-ns-resize flex items-center justify-center border-t border-white/10 group transition-colors shrink-0 z-30 relative"
+                title="Drag up or down to resize inspection panel"
+              >
+                <div className="w-12 h-1 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
+              </div>
+
+              {/* BOTTOM: Inspection Workspace */}
+              <div
+                style={{ height: isBottomCollapsed ? '40px' : `${bottomHeight}px` }}
+                className={`transition-all ${isResizing ? 'duration-0' : 'duration-200'} shrink-0 overflow-hidden relative`}
+              >
+                <InspectionWorkspace
+                  selectedSurvey={activeSurveyData}
+                  playbackIndex={playbackIndex}
+                  setPlaybackIndex={setPlaybackIndex}
+                  isPlaying={isPlaying}
+                  setIsPlaying={setIsPlaying}
+                  onCenterMap={handleCenterMap}
+                  onSelectDetection={setSelectedDetection}
+                  selectedDetection={selectedDetection}
+                  bottomTab={bottomTab}
+                  setBottomTab={setBottomTab}
+                  isCollapsed={isBottomCollapsed}
+                  onToggleCollapse={() => setIsBottomCollapsed(!isBottomCollapsed)}
+                  onProcessSurvey={handleProcessSurvey}
+                />
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

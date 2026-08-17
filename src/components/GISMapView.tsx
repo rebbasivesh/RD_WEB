@@ -187,51 +187,61 @@ export const GISMapView: React.FC = () => {
     });
 
     // 1. Cyan Survey Route Polyline
-    const polyCoords: [number, number][] = mockPathCoordinates.map(c => [c.lat, c.lng]);
+    const selSrv = selectedSurvey as any;
+    const rawPath = selSrv?.gpsPath && selSrv.gpsPath.length > 0 ? selSrv.gpsPath : mockPathCoordinates;
+    const polyCoords: [number, number][] = rawPath.map((c: any) => [c.lat, c.lng]);
     const routePoly = L.polyline(polyCoords, {
       color: '#22D3EE',
       weight: 4,
       opacity: 0.9
     }).addTo(map);
 
-    map.fitBounds(routePoly.getBounds(), { padding: [20, 20] });
+    map.fitBounds(routePoly.getBounds(), { padding: [30, 30] });
 
-    // 2. Road Quality segments
-    const quarter = Math.floor(polyCoords.length / 4);
-    const colors = ['#10B981', '#EAB308', '#F59E0B', '#EF4444'];
-    for (let i = 0; i < 4; i++) {
-      const startIdx = i * quarter;
-      const endIdx = Math.min((i + 1) * quarter + 1, polyCoords.length);
-      const segmentCoords = polyCoords.slice(startIdx, endIdx);
-      if (segmentCoords.length < 2) continue;
+    // 2. Start & End Markers
+    if (polyCoords.length > 0) {
+      const startIcon = L.divIcon({
+        className: 'custom-start-marker',
+        html: `<div style="background:#10B981; color:#fff; font-family:monospace; font-size:9px; font-weight:bold; padding:2px 8px; border-radius:12px; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.5); white-space:nowrap;">● START</div>`,
+        iconAnchor: [24, 10]
+      });
+      L.marker(polyCoords[0], { icon: startIcon }).addTo(map);
 
-      L.polyline(segmentCoords, {
-        color: colors[i],
-        weight: 6,
-        opacity: 0.85
-      }).addTo(map);
+      const endIcon = L.divIcon({
+        className: 'custom-end-marker',
+        html: `<div style="background:#EF4444; color:#fff; font-family:monospace; font-size:9px; font-weight:bold; padding:2px 8px; border-radius:12px; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.5); white-space:nowrap;">● END</div>`,
+        iconAnchor: [20, 10]
+      });
+      L.marker(polyCoords[polyCoords.length - 1], { icon: endIcon }).addTo(map);
     }
 
-    // 3. AI distress markers
-    mockDetections.forEach((det) => {
-      const color = det.type === 'Pothole' ? '#EF4444' : det.type === 'Longitudinal Crack' ? '#F59E0B' : '#8B5CF6';
-      const marker = L.circleMarker([det.location.lat, det.location.lng], {
-        radius: 6,
-        fillColor: color,
-        color: '#FFFFFF',
-        weight: 1,
-        fillOpacity: 0.95
-      }).addTo(map);
+    // 3. AI distress markers (Rendered ONLY when survey status is completed)
+    if ((selSrv?.status === 'completed' || selSrv?.status === 'Completed') && selSrv.detections && selSrv.detections.length > 0) {
+      selSrv.detections.forEach((det: any) => {
+        const color = det.type === 'Pothole' ? '#EF4444' : det.type === 'Longitudinal Crack' ? '#F59E0B' : det.type === 'Transverse Crack' ? '#3B82F6' : '#8B5CF6';
+        const marker = L.circleMarker([det.location.lat, det.location.lng], {
+          radius: 6,
+          fillColor: color,
+          color: '#FFFFFF',
+          weight: 1.5,
+          fillOpacity: 0.95
+        }).addTo(map);
 
-      marker.bindPopup(`
-        <div style="font-family: monospace; font-size: 10px; background-color: #121212; color: #fff; padding: 6px; border: 1px solid rgba(255,255,255,0.06); border-radius: 4px;">
-          <b>${det.type.toUpperCase()}</b><br/>
-          CH: CH 12+450<br/>
-          LAT: ${det.location.lat.toFixed(5)}<br/>
-          LNG: ${det.location.lng.toFixed(5)}
-        </div>
-      `);
-    });
+        const imgHtml = det.imageUrl ? `<img src="${det.imageUrl}" style="width:140px; height:80px; object-fit:cover; border-radius:4px; margin-top:4px; border:1px solid #333;" />` : '';
+
+        marker.bindPopup(`
+          <div style="font-family: monospace; font-size: 10px; background-color: #121826; color: #fff; padding: 8px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; min-width: 150px;">
+            <b style="color: ${color}; text-transform: uppercase;">${det.type}</b><br/>
+            <b>Confidence:</b> ${(det.confidence * 100).toFixed(0)}%<br/>
+            <b>Survey:</b> ${selectedSurvey.id}<br/>
+            <b>Time:</b> ${det.timestamp}<br/>
+            <b>Lat:</b> ${det.location.lat.toFixed(5)}°N<br/>
+            <b>Lng:</b> ${det.location.lng.toFixed(5)}°E<br/>
+            ${imgHtml}
+          </div>
+        `);
+      });
+    }
 
     // 4. Blue Arrow vehicle marker
     const vehicleIcon = L.divIcon({

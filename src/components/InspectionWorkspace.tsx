@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FileText,
   AlertTriangle,
@@ -33,6 +33,7 @@ interface InspectionWorkspaceProps {
   setBottomTab: (tab: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  onProcessSurvey?: (surveyId: string) => void;
 }
 
 export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
@@ -47,7 +48,8 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
   bottomTab,
   setBottomTab,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  onProcessSurvey
 }) => {
 
   if (!selectedSurvey) {
@@ -69,6 +71,8 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
     const lngDiff = Math.abs(d.location.lng - currentPlaybackCoord.lng);
     return latDiff < 0.005 && lngDiff < 0.005;
   });
+
+  const [previewModalItem, setPreviewModalItem] = useState<{ det: Detection; idx: number; imgUrl: string } | null>(null);
 
   const handleRowClick = (det: Detection) => {
     onSelectDetection(det);
@@ -226,11 +230,7 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
       <div className="flex-grow flex overflow-hidden">
         
         {/* Tab Content Panel (flex-grow) */}
-        <div className={`flex-grow min-w-0 bg-transparent scroll-smooth ${
-          bottomTab === 'Survey Details' 
-            ? 'overflow-hidden py-2 px-3.5' 
-            : 'overflow-y-auto p-3.5'
-        }`}>
+        <div className="flex-grow min-w-0 bg-transparent scroll-smooth overflow-y-auto p-3.5">
           {/* SURVEY DETAILS TAB (3-Column Layout from Screenshot) */}
           {bottomTab === 'Survey Details' && (
             <div className="flex h-full w-full gap-0 items-stretch select-none text-sans">
@@ -298,22 +298,40 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
                       </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-slate-500 text-[8px] uppercase font-bold tracking-wider font-mono mb-0.5">Average IRI</span>
-                      <span className={`${getIriColorClass(selectedSurvey.avgIri)} text-[11px] font-bold`}>
-                        {displayData.avgIri}
+                      <span className="text-slate-500 text-[8px] uppercase font-bold tracking-wider font-mono mb-0.5">Processing Status</span>
+                      <span className={`text-[10px] font-bold uppercase font-mono ${
+                        selectedSurvey.status === 'completed'
+                          ? 'text-[#10B981]'
+                          : selectedSurvey.status === 'processing' || selectedSurvey.status === 'running'
+                          ? 'text-[#3B82F6]'
+                          : 'text-[#EAB308]'
+                      }`}>
+                        {selectedSurvey.status === 'completed'
+                          ? 'COMPLETED'
+                          : selectedSurvey.status === 'processing' || selectedSurvey.status === 'running'
+                          ? 'PROCESSING...'
+                          : 'PENDING PROCESSING'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col mt-1.5 pt-1.5 border-t border-white/5">
-                  <span className="text-slate-500 text-[8px] uppercase font-bold tracking-wider font-mono mb-0.5">Road Score</span>
-                  <span className="text-white text-[11px] font-bold flex items-baseline gap-0.5 mt-0.5">
-                    <span className="text-[17px] font-extrabold text-[#3B82F6] leading-none">
-                      {selectedSurvey.roadScore ? selectedSurvey.roadScore.toFixed(1) : '4.2'}
-                    </span>
-                    <span className="text-slate-500 text-[10px]">/ 5</span>
-                  </span>
+                <div className="flex flex-col mt-2 pt-2 border-t border-white/5 gap-2">
+                  {selectedSurvey.status !== 'completed' && (
+                    <button
+                      disabled={selectedSurvey.status === 'processing' || selectedSurvey.status === 'running'}
+                      onClick={() => onProcessSurvey && onProcessSurvey(selectedSurvey.id)}
+                      className={`w-full py-2 rounded-lg text-[10px] font-mono font-bold uppercase transition-all shadow-md flex items-center justify-center gap-2 ${
+                        selectedSurvey.status === 'processing' || selectedSurvey.status === 'running'
+                          ? 'bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/30 cursor-not-allowed animate-pulse'
+                          : 'bg-[#3B82F6] hover:bg-blue-600 text-white border border-blue-400'
+                      }`}
+                    >
+                      {selectedSurvey.status === 'processing' || selectedSurvey.status === 'running'
+                        ? 'PROCESSING SURVEY... PLEASE WAIT'
+                        : 'PROCESS SURVEY'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -709,57 +727,154 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
           {/* IMAGES GALLERY TAB */}
           {bottomTab === 'Images' && (
             <div className="space-y-4">
-              <span className="text-[9px] text-[#2563EB] font-bold uppercase tracking-wider block font-mono">
-                Pavement Distress Frame Gallery
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-[#2563EB] font-bold uppercase tracking-wider block font-mono">
+                  Pavement Distress Frame Gallery ({detections.length} AI Frames Detected)
+                </span>
+                <span className="text-[8px] text-slate-500 font-mono">
+                  Click any frame to inspect high-resolution AI annotations
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
                 {detections.map((det, idx) => {
                   const mockImg = mockImagesList[idx % mockImagesList.length];
+                  const displayImgUrl = det.imageUrl || mockImg.img;
+
                   return (
                     <div 
                       key={det.id}
-                      className="bg-gis-panel border border-white/5 p-2 rounded-xl flex flex-col justify-between"
+                      onClick={() => setPreviewModalItem({ det, idx, imgUrl: displayImgUrl })}
+                      className="bg-gis-panel border border-white/10 hover:border-[#3B82F6]/50 p-2 rounded-xl flex flex-col justify-between cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_15px_rgba(59,130,246,0.15)] group"
                     >
-                      <div className="relative group overflow-hidden rounded-lg mb-2">
+                      <div className="relative overflow-hidden rounded-lg mb-2 bg-slate-950 h-28 flex items-center justify-center border border-white/5">
                         <img 
-                          src={mockImg.img} 
-                          className="h-20 w-full object-cover transition-transform group-hover:scale-105 duration-200" 
+                          src={displayImgUrl} 
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = mockImg.img;
+                          }}
+                          className="h-full w-full object-contain transition-transform group-hover:scale-105 duration-200" 
                           alt="Distress frame preview" 
                         />
-                        <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity duration-200">
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity duration-200 backdrop-blur-[1px]">
                           <button 
-                            onClick={() => handleRowClick(det)}
-                            className="p-1.5 bg-[#172033]/90 border border-white/8 rounded-lg text-white hover:text-[#2563EB] transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRowClick(det);
+                            }}
+                            className="p-2 bg-[#172033]/90 border border-white/10 rounded-lg text-white hover:text-[#3B82F6] hover:bg-slate-800 transition-colors shadow-lg"
                             title="Zoom Map to Distress"
                           >
-                            <ZoomIn className="w-3.5 h-3.5" />
+                            <ZoomIn className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => alert(`Showing Fullscreen Frame #${1250 + idx}`)}
-                            className="p-1.5 bg-[#172033]/90 border border-white/8 rounded-lg text-white hover:text-[#2563EB] transition-colors"
-                            title="Fullscreen Preview"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewModalItem({ det, idx, imgUrl: displayImgUrl });
+                            }}
+                            className="p-2 bg-[#172033]/90 border border-white/10 rounded-lg text-white hover:text-[#3B82F6] hover:bg-slate-800 transition-colors shadow-lg"
+                            title="Inspect Fullscreen Frame"
                           >
-                            <Maximize2 className="w-3.5 h-3.5" />
+                            <Maximize2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
 
                       <div className="font-mono text-[9px] text-slate-400 space-y-0.5 px-1 pb-1">
                         <div className="flex justify-between font-bold text-white leading-tight">
-                          <span>{det.type}</span>
-                          <span className="text-danger">{(det.confidence * 100).toFixed(0)}%</span>
+                          <span className="truncate pr-1">{det.type}</span>
+                          <span className="text-danger shrink-0">{(det.confidence * 100).toFixed(0)}%</span>
                         </div>
-                        <div className="flex justify-between text-slate-500">
+                        <div className="flex justify-between text-slate-500 text-[8.5px]">
                           <span>{mockImg.ch}</span>
-                          <span>FR-{(1250 + idx).toString()}</span>
+                          <span>#FR-{(1250 + idx).toString()}</span>
                         </div>
-                        <div className="text-[7.5px] truncate text-slate-600 mt-1">
-                          {det.location.lat.toFixed(5)}°N, {det.location.lng.toFixed(5)}°E
+                        <div className="text-[7.5px] truncate text-slate-500 mt-1 flex justify-between items-center font-mono">
+                          <span>{det.location.lat.toFixed(5)}°N, {det.location.lng.toFixed(5)}°E</span>
                         </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Fullscreen Image Lightbox Inspection Modal */}
+          {previewModalItem && (
+            <div 
+              className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-8 animate-fadeIn"
+              onClick={() => setPreviewModalItem(null)}
+            >
+              <div 
+                className="bg-[#0C111A] border border-white/15 rounded-2xl max-w-4xl w-full overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] flex flex-col relative"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center bg-[#121826]">
+                  <div className="flex items-center gap-3 font-mono">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] animate-pulse" />
+                    <div>
+                      <h3 className="text-white font-bold text-sm tracking-wide font-sans">
+                        {previewModalItem.det.type} <span className="text-[#EF4444] ml-2">{(previewModalItem.det.confidence * 100).toFixed(0)}% Confidence</span>
+                      </h3>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Frame #FR-{(1250 + previewModalItem.idx).toString()} • Chainage CH 12+{(450 + previewModalItem.idx * 10).toString()} • {previewModalItem.det.timestamp}
+                      </span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setPreviewModalItem(null)}
+                    className="p-1.5 rounded-lg border border-white/10 bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* High-Res Image Display Container */}
+                <div className="relative bg-slate-950 p-4 flex items-center justify-center max-h-[65vh] overflow-hidden">
+                  <img 
+                    src={previewModalItem.imgUrl} 
+                    onError={(e) => {
+                      const mockImg = mockImagesList[previewModalItem.idx % mockImagesList.length];
+                      (e.currentTarget as HTMLImageElement).src = mockImg.img;
+                    }}
+                    className="max-h-[60vh] w-auto object-contain rounded-xl border border-white/10 shadow-2xl" 
+                    alt="Full Inspection Frame" 
+                  />
+                </div>
+
+                {/* Modal Footer Telemetry Summary */}
+                <div className="px-6 py-3.5 bg-[#121826] border-t border-white/10 flex flex-wrap items-center justify-between gap-4 font-mono text-[11px] text-slate-400">
+                  <div className="flex gap-6">
+                    <div>
+                      <span className="block text-[8.5px] uppercase text-slate-500 font-sans font-bold">LATITUDE</span>
+                      <span className="text-white font-bold">{previewModalItem.det.location.lat.toFixed(6)}°N</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8.5px] uppercase text-slate-500 font-sans font-bold">LONGITUDE</span>
+                      <span className="text-white font-bold">{previewModalItem.det.location.lng.toFixed(6)}°E</span>
+                    </div>
+                    <div>
+                      <span className="block text-[8.5px] uppercase text-slate-500 font-sans font-bold">AI STATUS</span>
+                      <span className="text-emerald-400 font-bold">● VERIFIED ANOMALY</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => {
+                        handleRowClick(previewModalItem.det);
+                        setPreviewModalItem(null);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-[#3B82F6] hover:bg-[#2563EB] text-white font-bold text-xs tracking-wider transition-colors font-sans flex items-center gap-2"
+                    >
+                      <ZoomIn className="w-4 h-4" /> Locate on GIS Map
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

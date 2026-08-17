@@ -1,9 +1,7 @@
 import React from 'react';
 import {
   Map,
-  Radio,
   History,
-  Briefcase,
   FileText,
   Cpu,
   Users,
@@ -11,42 +9,65 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
-  Server
+  Server,
+  SlidersHorizontal,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
+import type { UserItem } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  currentUser?: UserItem | null;
 }
-
-const workspaceItems = [
-  { id: 'gis_workspace', label: 'GIS Workspace', icon: Map }
-];
-
-const monitoringItems = [
-  { id: 'live_survey', label: 'Live Survey', icon: Radio, live: true },
-  { id: 'survey_history', label: 'Survey History', icon: History }
-];
-
-const managementItems = [
-  { id: 'edge_devices', label: 'Edge Devices', icon: Cpu },
-  { id: 'users', label: 'Users', icon: Users }
-];
-
-const adminItems = [
-  { id: 'reports', label: 'Reports', icon: FileText },
-  { id: 'settings', label: 'Settings', icon: Settings }
-];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
   isCollapsed,
-  setIsCollapsed
+  setIsCollapsed,
+  currentUser
 }) => {
-  const renderNavGroup = (title: string, items: typeof workspaceItems) => {
+  const userRole = currentUser?.role || 'VIEWER';
+  const isSuperAdmin = userRole === 'SUPER_ADMIN';
+  const isSupervisor = userRole === 'SUPERVISOR';
+  const isOperatorOrViewer = userRole === 'OPERATOR' || userRole === 'VIEWER';
+
+  const workspaceItems = [
+    { id: 'gis_workspace', label: 'GIS Workspace', icon: Map }
+  ];
+
+  const surveysItems = [
+    { id: 'survey_explorer', label: 'Survey Explorer', icon: SlidersHorizontal },
+    { id: 'survey_history', label: 'Survey History', icon: History }
+  ];
+
+  // Management items dynamically filtered
+  const managementItems = [
+    { id: 'edge_devices', label: 'Edge Node Devices', icon: Cpu }
+  ];
+
+  if (isSuperAdmin || isSupervisor) {
+    managementItems.push({ id: 'users', label: 'User Directory', icon: Users });
+  } else {
+    managementItems.push({ id: 'users', label: 'My Profile', icon: UserCheck });
+  }
+
+  // Admin items dynamically filtered
+  const adminItems = [
+    { id: 'reports', label: 'Reports', icon: FileText }
+  ];
+
+  if (isSuperAdmin) {
+    adminItems.push({ id: 'permissions', label: 'Permission Config', icon: ShieldCheck });
+  }
+
+  adminItems.push({ id: 'settings', label: 'Settings', icon: Settings });
+
+  const renderNavGroup = (title: string, items: Array<{ id: string; label: string; icon: any; live?: boolean }>) => {
     return (
       <div className="space-y-1">
         {!isCollapsed && (
@@ -82,15 +103,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }`} />
                   {!isCollapsed && <span className="truncate">{item.label}</span>}
                 </div>
-
-                {!isCollapsed && 'live' in item && item.live && (
-                  <span className="text-[7px] bg-[#EF4444]/15 text-[#EF4444] border border-[#EF4444]/20 px-1.5 py-0.2 rounded font-mono font-bold uppercase animate-pulse leading-none">
-                    LIVE
-                  </span>
-                )}
-                {isCollapsed && 'live' in item && item.live && (
-                  <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-[#EF4444] animate-pulse" />
-                )}
               </button>
             );
           })}
@@ -143,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation Groups List */}
       <div className="flex-grow py-4 px-2.5 space-y-6 overflow-y-auto">
         {renderNavGroup('Workspace', workspaceItems)}
-        {renderNavGroup('Monitoring', monitoringItems)}
+        {renderNavGroup('Surveys', surveysItems)}
         {renderNavGroup('Management', managementItems)}
         {renderNavGroup('Administration', adminItems)}
       </div>

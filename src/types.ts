@@ -39,7 +39,7 @@ export interface RoadAsset {
   location: GpsCoords;
 }
 
-export type SurveyStatus = 'idle' | 'running' | 'paused' | 'completed';
+export type SurveyStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'idle' | 'running' | 'paused';
 
 export interface Survey {
   id: string;
@@ -60,4 +60,39 @@ export interface Survey {
   detections: Detection[];
   assets: RoadAsset[];
   roadScore?: number;
+  averageSpeed?: number;
 }
+
+export type UserRole = 'SUPER_ADMIN' | 'SUPERVISOR' | 'OPERATOR' | 'VIEWER' | 'ADMIN';
+export type UserStatus = 'active' | 'inactive' | 'locked' | 'pending';
+
+export interface UserItem {
+  id: string; // USR-001
+  name: string;
+  loginId: string;
+  email: string;
+  phone?: string;
+  org: string;
+  department?: string;
+  scopeRegion?: string;
+  createdBy?: string;
+  role: UserRole;
+  status: UserStatus;
+  failedLoginAttempts?: number;
+  forcePasswordChange?: boolean;
+  lastLogin?: string;
+  createdAt?: string;
+  permissions?: string[];
+}
+
+export interface AuditLogItem {
+  id: number;
+  actorUserId: string;
+  actorLoginId: string;
+  action: string;
+  targetUserId: string;
+  details: string;
+  ipAddress: string;
+  timestamp: string;
+}
+

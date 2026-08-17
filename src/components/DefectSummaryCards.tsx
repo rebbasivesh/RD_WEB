@@ -17,7 +17,8 @@ export const DefectSummaryCards: React.FC<DefectSummaryCardsProps> = ({ selected
   if (!selectedSurvey) return null;
 
   const detections = selectedSurvey.detections || [];
-  const countDistress = (type: string) => detections.filter(d => d.type === type).length;
+  const isCompleted = selectedSurvey.status === 'completed';
+  const countDistress = (type: string) => isCompleted ? detections.filter(d => d.type === type).length : 'Pending';
 
   const cardsData = [
     {
@@ -27,7 +28,7 @@ export const DefectSummaryCards: React.FC<DefectSummaryCardsProps> = ({ selected
       icon: AlertOctagon,
       iconColor: 'text-[#EF4444]',
       iconBg: 'bg-[#EF4444]/10',
-      badgeText: 'High',
+      badgeText: isCompleted ? 'High' : 'Pending',
       badgeClass: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/15',
       glowClass: 'hover:shadow-[0_8px_32px_rgba(239,68,68,0.18)] hover:border-[#EF4444]/20'
     },
@@ -38,7 +39,7 @@ export const DefectSummaryCards: React.FC<DefectSummaryCardsProps> = ({ selected
       icon: GitCommit,
       iconColor: 'text-[#F59E0B]',
       iconBg: 'bg-[#F59E0B]/10',
-      badgeText: 'Medium',
+      badgeText: isCompleted ? 'Medium' : 'Pending',
       badgeClass: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/15',
       glowClass: 'hover:shadow-[0_8px_32px_rgba(245,158,11,0.15)] hover:border-[#F59E0B]/20'
     },
@@ -49,7 +50,7 @@ export const DefectSummaryCards: React.FC<DefectSummaryCardsProps> = ({ selected
       icon: GitMerge,
       iconColor: 'text-[#3B82F6]',
       iconBg: 'bg-[#3B82F6]/10',
-      badgeText: 'Low',
+      badgeText: isCompleted ? 'Low' : 'Pending',
       badgeClass: 'bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/15',
       glowClass: 'hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] hover:border-[#3B82F6]/20'
     },
@@ -60,19 +61,19 @@ export const DefectSummaryCards: React.FC<DefectSummaryCardsProps> = ({ selected
       icon: Grid,
       iconColor: 'text-[#8B5CF6]',
       iconBg: 'bg-[#8B5CF6]/10',
-      badgeText: 'High',
+      badgeText: isCompleted ? 'High' : 'Pending',
       badgeClass: 'bg-[#8B5CF6]/10 text-[#8B5CF6] border-[#8B5CF6]/15',
       glowClass: 'hover:shadow-[0_8px_32px_rgba(139,92,246,0.18)] hover:border-[#8B5CF6]/20'
     },
     {
       title: 'Road Quality',
-      count: selectedSurvey.roadScore ? selectedSurvey.roadScore.toFixed(1) : '4.2',
-      scoreSuffix: ' / 5',
+      count: isCompleted ? (selectedSurvey.roadScore ? selectedSurvey.roadScore.toFixed(1) : 'N/A') : 'Pending',
+      scoreSuffix: isCompleted && selectedSurvey.roadScore ? ' / 5' : '',
       subtitle: 'Overall rating',
       icon: Milestone,
       iconColor: 'text-[#10B981]',
       iconBg: 'bg-[#10B981]/10',
-      badgeText: 'Good',
+      badgeText: isCompleted ? 'Good' : 'Pending',
       badgeClass: 'bg-[#10B981]/10 text-[#10B981] border-[#10B981]/15',
       glowClass: 'hover:shadow-[0_8px_32px_rgba(16,185,129,0.15)] hover:border-[#10B981]/20'
     }
