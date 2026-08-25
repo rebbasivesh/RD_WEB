@@ -96,7 +96,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               <input
                 type="text"
                 required
-                placeholder="e.g. anoop.admin"
+                placeholder="e.g. admin"
                 value={loginId}
                 onChange={(e) => setLoginId(e.target.value)}
                 className="bg-transparent border-none outline-none text-xs text-slate-100 w-full placeholder-slate-500 py-0"

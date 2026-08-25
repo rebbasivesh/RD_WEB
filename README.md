@@ -55,7 +55,7 @@ sudo docker ps
 
 | Role | Login ID | Default Password |
 | :--- | :--- | :--- |
-| **Super Admin** | `anoop.admin` | `admin123` |
+| **Super Admin** | `admin` | `123admin` |
 | **Operator** | `sivesh.jha` | `password123` |
 | **Supervisor** | `p.mandava` | `password123` |
 | **Viewer** | `dg.morth` | `password123` |

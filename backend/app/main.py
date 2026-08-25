@@ -17,14 +17,14 @@ except Exception as e:
 def seed_initial_users():
     db = SessionLocal()
     try:
-        super_admin = db.query(User).filter((User.login_id == "anoop.admin") | (User.user_id == "USR-001")).first()
-        if not super_admin:
-            hashed = hash_password("admin123")
+        admin_user = db.query(User).filter((User.login_id == "admin") | (User.login_id == "anoop.admin") | (User.user_id == "USR-001")).first()
+        hashed = hash_password("123admin")
+        if not admin_user:
             admin_user = User(
                 user_id="USR-001",
-                full_name="Anoop Kumar",
-                login_id="anoop.admin",
-                email="a.kumar@nhai.gov.in",
+                full_name="System Administrator",
+                login_id="admin",
+                email="admin@dats.ai",
                 phone="+91 98765 43210",
                 organization="NHAI HQ",
                 department="Pavement Engineering & Edge AI",
@@ -41,11 +41,18 @@ def seed_initial_users():
                 actor_login_id="system.seed",
                 action="INITIAL_SUPER_ADMIN_CREATED",
                 target_user_id="USR-001",
-                details="Seeded initial Super Admin account (anoop.admin)."
+                details="Seeded initial Super Admin account (admin)."
             )
             db.add(audit_entry)
             db.commit()
-            logger.info("Seeded initial Super Admin account 'anoop.admin' (USR-001).")
+            logger.info("Seeded initial Super Admin account 'admin' (USR-001).")
+        else:
+            admin_user.login_id = "admin"
+            admin_user.password_hash = hashed
+            admin_user.status = "active"
+            admin_user.failed_login_attempts = 0
+            db.commit()
+            logger.info("Updated Super Admin account 'admin' password to '123admin'.")
 
         if db.query(User).count() < 3:
             sample_users = [
