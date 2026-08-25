@@ -1,7 +1,16 @@
 version: '3.8'
 
 services:
-  rd_web:
+  rd_web_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rd_web_backend
+    restart: always
+    ports:
+      - "8000:8000"
+
+  rd_web_frontend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,5 +18,5 @@ services:
     restart: always
     ports:
       - "80:80"
-    environment:
-      - NODE_ENV=production
+    depends_on:
+      - rd_web_backend
