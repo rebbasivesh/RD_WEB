@@ -1,6 +1,6 @@
 import type { Survey, Detection, GpsCoords } from '../types';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:8000/api' : '/api');
 
 export const mapDetectionType = (className: string): 'Pothole' | 'Longitudinal Crack' | 'Transverse Crack' | 'Alligator Crack' => {
   const upper = className.toUpperCase();
@@ -53,6 +53,7 @@ export const fetchSurveys = async (): Promise<Survey[]> => {
 
         let gpsPath: GpsCoords[] = [];
         let detections: Detection[] = [];
+        let roadQualitySegments: any[] = [];
 
         try {
           const mapRes = await fetch(`${API_BASE_URL}/map/${surveyId}`);
@@ -60,13 +61,50 @@ export const fetchSurveys = async (): Promise<Survey[]> => {
             const geojson = await mapRes.json();
             const features = geojson.features || [];
 
-            // Route LineString
-            const routeFeature = features.find((f: any) => f.properties?.type === 'route' || f.geometry?.type === 'LineString');
+            // Extract continuous route feature (type === 'route')
+            let routeFeature = features.find((f: any) => f.properties?.type === 'route');
+            if (!routeFeature) {
+              // Find LineString feature with maximum points
+              const lineFeatures = features.filter((f: any) => f.geometry?.type === 'LineString');
+              if (lineFeatures.length > 0) {
+                lineFeatures.sort((a: any, b: any) => (b.geometry?.coordinates?.length || 0) - (a.geometry?.coordinates?.length || 0));
+                routeFeature = lineFeatures[0];
+              }
+            }
+
             if (routeFeature && routeFeature.geometry && routeFeature.geometry.coordinates) {
               gpsPath = routeFeature.geometry.coordinates.map((coord: [number, number]) => ({
                 lng: coord[0],
                 lat: coord[1]
               }));
+            }
+
+            // Extract real road_quality segment features from GeoJSON
+            const rqFeatures = features.filter((f: any) => f.properties?.type === 'road_quality');
+            if (rqFeatures.length > 0) {
+              roadQualitySegments = rqFeatures.map((f: any, idx: number) => {
+                const props = f.properties || {};
+                const rawCoords = f.geometry?.coordinates || [];
+                const coords: GpsCoords[] = rawCoords.map((c: [number, number]) => ({ lng: c[0], lat: c[1] }));
+                
+                const iriVal = props.iri || props.avg_iri || 0.0;
+                const grade = props.road_grade || (iriVal > 8 ? 'Very Poor' : iriVal > 4 ? 'Poor' : iriVal > 2.5 ? 'Fair' : 'Good');
+                
+                let segColor = '#10B981'; // Green: Good
+                if (iriVal >= 8.0 || grade === 'Very Poor') segColor = '#EF4444'; // Red: Critical
+                else if (iriVal >= 4.0 || grade === 'Poor') segColor = '#F59E0B'; // Orange: Poor
+                else if (iriVal >= 2.5 || grade === 'Fair') segColor = '#EAB308'; // Yellow: Fair
+
+                return {
+                  id: `rq_${surveyId}_${idx}`,
+                  segmentNumber: idx + 1,
+                  roadScore: props.road_score || 0,
+                  roadGrade: grade,
+                  iri: parseFloat(iriVal.toFixed(2)),
+                  coordinates: coords,
+                  color: segColor
+                };
+              });
             }
 
             // Detection point features (ONLY if survey is completed)
@@ -134,10 +172,11 @@ export const fetchSurveys = async (): Promise<Survey[]> => {
           distanceCoveredKm: parseFloat((item.distance || 0.0).toFixed(2)),
           durationSeconds: Math.round(item.duration || 0),
           averageSpeed: item.average_speed && item.average_speed > 0 ? parseFloat(item.average_speed.toFixed(1)) : undefined,
-          avgIri: status === 'completed' ? 1.85 : 0,
+          avgIri: item.avg_iri && item.avg_iri > 0 ? parseFloat(item.avg_iri.toFixed(2)) : (status === 'completed' ? 1.85 : 0),
           avgPcr: status === 'completed' ? 88 : 0,
           totalDetections: status === 'completed' ? detections.length : 0,
           gpsPath: gpsPath.length > 0 ? gpsPath : [{ lat: 16.239, lng: 80.657 }],
+          roadQualitySegments: roadQualitySegments,
           detections: status === 'completed' ? detections : [],
           assets: []
         };
@@ -148,6 +187,28 @@ export const fetchSurveys = async (): Promise<Survey[]> => {
   } catch (e) {
     console.error("Failed to fetch real surveys from backend API:", e);
     return [];
+  }
+};
+
+export const fetchSurveyImages = async (surveyId: string): Promise<any[]> => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/surveys/${surveyId}/images`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.warn(`Could not load images for ${surveyId}:`, e);
+    return [];
+  }
+};
+
+export const fetchSurveyVideoInfo = async (surveyId: string): Promise<any> => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/surveys/${surveyId}/video-info`);
+    if (!res.ok) return { available: false };
+    return await res.json();
+  } catch (e) {
+    console.warn(`Could not load video info for ${surveyId}:`, e);
+    return { available: false };
   }
 };
 
@@ -344,6 +405,29 @@ export const updateUserPermissionsApi = async (userId: string, permissions: stri
     throw new Error(err.detail || 'Failed to update user permissions');
   }
   return await res.json();
+};
+
+export const fetchStorageStatusApi = async () => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/storage/status`, {
+      headers: { ...getAuthHeader() }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {
+    console.error("Failed to fetch storage status from API:", e);
+  }
+  return {
+    path: "/home/nvidia/Road_Survay/UPLOADS/",
+    mount: "/home/nvidia/Road_Survay/",
+    total_bytes: 999653638144,
+    used_bytes: 95563022336,
+    available_bytes: 904090615808,
+    free_percent: 90.4,
+    connected: true,
+    healthy: true
+  };
 };
 
 

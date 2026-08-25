@@ -41,6 +41,16 @@ export interface RoadAsset {
 
 export type SurveyStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'idle' | 'running' | 'paused';
 
+export interface RoadQualitySegment {
+  id: string;
+  segmentNumber: number;
+  roadScore: number;
+  roadGrade: string;
+  iri: number;
+  coordinates: GpsCoords[];
+  color: string;
+}
+
 export interface Survey {
   id: string;
   projectName: string;
@@ -57,6 +67,7 @@ export interface Survey {
   avgPcr: number;
   totalDetections: number;
   gpsPath: GpsCoords[];
+  roadQualitySegments?: RoadQualitySegment[];
   detections: Detection[];
   assets: RoadAsset[];
   roadScore?: number;

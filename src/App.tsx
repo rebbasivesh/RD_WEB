@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { GISWorkspace } from './components/GISWorkspace';
+import { SelectedSurveyRightPanel } from './components/SelectedSurveyRightPanel';
 import { SurveyExplorer } from './components/SurveyExplorer';
 import { SurveyExplorerPage } from './components/SurveyExplorerPage';
 import { InspectionWorkspace } from './components/InspectionWorkspace';
@@ -35,8 +36,8 @@ function App() {
   const [deviceConnected] = useState<boolean>(true);
 
   // Survey Data state
-  const [surveys, setSurveys] = useState<Survey[]>(mockSurveys);
-  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(mockSurveys[0]);
+  const [surveys, setSurveys] = useState<Survey[]>([]);
+  const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
 
   // Session verification on mount
   useEffect(() => {
@@ -334,32 +335,6 @@ function App() {
 
   const activeSurveyData = getActiveSurvey();
 
-  const [bottomHeight, setBottomHeight] = useState<number>(320);
-  const [isResizing, setIsResizing] = useState<boolean>(false);
-
-  const handleMouseDownResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const newHeight = window.innerHeight - moveEvent.clientY;
-      const clamped = Math.max(40, Math.min(newHeight, window.innerHeight - 100));
-      setBottomHeight(clamped);
-      if (clamped > 60 && isBottomCollapsed) {
-        setIsBottomCollapsed(false);
-      }
-    };
-
-    const onMouseUp = () => {
-      setIsResizing(false);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  };
-
   // AUTHENTICATION GATE
   if (!authToken) {
     return (
@@ -373,7 +348,7 @@ function App() {
   }
 
   return (
-    <div className={`flex flex-col w-screen h-screen overflow-hidden bg-gis-bg text-slate-100 font-sans select-none relative ${isResizing ? 'cursor-ns-resize' : ''}`}>
+    <div className="flex flex-col w-screen h-screen overflow-hidden bg-gis-bg text-slate-100 font-sans select-none relative">
       {/* 1. TOP: Enterprise Navigation Bar */}
       <Navbar
         deviceConnected={deviceConnected}
@@ -418,7 +393,14 @@ function App() {
                 {/* CENTER: GIS Workspace */}
                 <div className="flex-grow h-full flex flex-col relative min-h-0">
                   <GISWorkspace
+                    surveys={surveys}
                     selectedSurvey={activeSurveyData}
+                    onSelectSurvey={(srv) => {
+                      setSelectedSurvey(srv);
+                      setPlaybackIndex(0);
+                      setIsPlaying(false);
+                      setSelectedDetection(null);
+                    }}
                     playbackIndex={playbackIndex}
                     setPlaybackIndex={setPlaybackIndex}
                     isPlaying={isPlaying}
@@ -428,52 +410,22 @@ function App() {
                   />
                 </div>
 
-                {/* RIGHT SIDEBAR: Survey Explorer */}
+                {/* RIGHT SIDEBAR: Selected Survey Details & Analytics */}
                 {activeTab !== 'live_survey' && (
-                  <div className="w-[20%] h-full flex flex-col relative border-l border-white/5 bg-[#0C111A] overflow-hidden shrink-0">
-                    <SurveyExplorer
-                      surveys={surveys}
+                  <div className="w-[460px] h-full flex flex-col relative border-l border-white/10 bg-[#0C111A] overflow-hidden shrink-0">
+                    <SelectedSurveyRightPanel
                       selectedSurvey={activeSurveyData}
-                      onSelectSurvey={(srv) => {
-                        setSelectedSurvey(srv);
-                        setPlaybackIndex(0);
-                        setIsPlaying(false);
-                        setSelectedDetection(null);
-                      }}
+                      playbackIndex={playbackIndex}
+                      setPlaybackIndex={setPlaybackIndex}
+                      isPlaying={isPlaying}
+                      setIsPlaying={setIsPlaying}
+                      onCenterMap={handleCenterMap}
+                      onSelectDetection={setSelectedDetection}
+                      selectedDetection={selectedDetection}
+                      onProcessSurvey={handleProcessSurvey}
                     />
                   </div>
                 )}
-              </div>
-
-              {/* Drag Resize Handle Bar */}
-              <div
-                onMouseDown={handleMouseDownResize}
-                className="h-2 w-full bg-[#121826] hover:bg-[#3B82F6]/60 cursor-ns-resize flex items-center justify-center border-t border-white/10 group transition-colors shrink-0 z-30 relative"
-                title="Drag up or down to resize inspection panel"
-              >
-                <div className="w-12 h-1 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
-              </div>
-
-              {/* BOTTOM: Inspection Workspace */}
-              <div
-                style={{ height: isBottomCollapsed ? '40px' : `${bottomHeight}px` }}
-                className={`transition-all ${isResizing ? 'duration-0' : 'duration-200'} shrink-0 overflow-hidden relative`}
-              >
-                <InspectionWorkspace
-                  selectedSurvey={activeSurveyData}
-                  playbackIndex={playbackIndex}
-                  setPlaybackIndex={setPlaybackIndex}
-                  isPlaying={isPlaying}
-                  setIsPlaying={setIsPlaying}
-                  onCenterMap={handleCenterMap}
-                  onSelectDetection={setSelectedDetection}
-                  selectedDetection={selectedDetection}
-                  bottomTab={bottomTab}
-                  setBottomTab={setBottomTab}
-                  isCollapsed={isBottomCollapsed}
-                  onToggleCollapse={() => setIsBottomCollapsed(!isBottomCollapsed)}
-                  onProcessSurvey={handleProcessSurvey}
-                />
               </div>
             </>
           )}

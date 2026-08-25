@@ -477,13 +477,58 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
 
               {/* Right Column (24%) - Distress Summary */}
               <div className="w-[24%] pl-6 flex flex-col justify-between select-none">
-                <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider block mb-2 font-sans">
+                <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider block mb-1 font-sans">
                   Distress Summary
                 </span>
                 
-                <div className="flex-grow flex flex-col justify-center items-center">
-                  <div className="relative w-[90px] h-[90px] shrink-0 flex items-center justify-center mb-1">
-                    <svg width="80" height="80" viewBox="0 0 100 100" className="-rotate-90">
+                <div className="flex-grow flex items-center justify-between gap-2">
+                  {/* Donut Legend metrics list */}
+                  <div className="flex-1 space-y-1.5 text-[10.5px] font-medium font-sans pr-1">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
+                        <span className="text-slate-300 truncate text-[10px]">Potholes</span>
+                      </span>
+                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[10.5px]">
+                        <span>{displayData.potholes}</span>
+                        <span className="text-slate-500 text-[8.5px] font-sans font-normal">({potPct.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
+                        <span className="text-slate-300 truncate text-[10px]">Longitudinal</span>
+                      </span>
+                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[10.5px]">
+                        <span>{displayData.longitudinal}</span>
+                        <span className="text-slate-500 text-[8.5px] font-sans font-normal">({longPct.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
+                        <span className="text-slate-300 truncate text-[10px]">Transverse</span>
+                      </span>
+                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[10.5px]">
+                        <span>{displayData.transverse}</span>
+                        <span className="text-slate-500 text-[8.5px] font-sans font-normal">({transPct.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] shrink-0" />
+                        <span className="text-slate-300 truncate text-[10px]">Alligator</span>
+                      </span>
+                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[10.5px]">
+                        <span>{displayData.alligator}</span>
+                        <span className="text-slate-500 text-[8.5px] font-sans font-normal">({alligPct.toFixed(0)}%)</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Donut Chart */}
+                  <div className="relative w-[90px] h-[90px] shrink-0 flex items-center justify-center">
+                    <svg width="85" height="85" viewBox="0 0 100 100" className="-rotate-90">
                       {/* Donut Background Circle */}
                       <circle cx="50" cy="50" r="35" fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
                       
@@ -547,52 +592,8 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
 
                     {/* Donut central counts */}
                     <div className="absolute flex flex-col items-center justify-center leading-none">
-                      <span className="text-[9px] text-slate-500 font-semibold uppercase tracking-wide font-sans whitespace-nowrap">Total</span>
-                      <span className="text-white font-extrabold text-[16px] mt-0.5 font-mono">{totalAnomalies}</span>
-                    </div>
-                  </div>
-
-                  {/* Donut Legend metrics list */}
-                  <div className="w-full space-y-1 text-[10.5px] font-medium font-sans">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] shrink-0" />
-                        <span className="text-slate-440 truncate">Potholes</span>
-                      </span>
-                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[11px]">
-                        <span>{displayData.potholes}</span>
-                        <span className="text-slate-500 text-[9px] font-sans font-normal">({potPct.toFixed(0)}%)</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] shrink-0" />
-                        <span className="text-slate-440 truncate">Longitudinal</span>
-                      </span>
-                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[11px]">
-                        <span>{displayData.longitudinal}</span>
-                        <span className="text-slate-500 text-[9px] font-sans font-normal">({longPct.toFixed(0)}%)</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] shrink-0" />
-                        <span className="text-slate-440 truncate">Transverse</span>
-                      </span>
-                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[11px]">
-                        <span>{displayData.transverse}</span>
-                        <span className="text-slate-500 text-[9px] font-sans font-normal">({transPct.toFixed(0)}%)</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6] shrink-0" />
-                        <span className="text-slate-440 truncate">Alligator</span>
-                      </span>
-                      <span className="flex items-baseline gap-1 shrink-0 text-white font-semibold font-mono text-[11px]">
-                        <span>{displayData.alligator}</span>
-                        <span className="text-slate-500 text-[9px] font-sans font-normal">({alligPct.toFixed(0)}%)</span>
-                      </span>
+                      <span className="text-[8px] text-slate-500 font-semibold uppercase tracking-wide font-sans whitespace-nowrap">TOTAL</span>
+                      <span className="text-white font-extrabold text-[15px] mt-0.5 font-mono">{totalAnomalies}</span>
                     </div>
                   </div>
                 </div>
@@ -940,7 +941,7 @@ export const InspectionWorkspace: React.FC<InspectionWorkspaceProps> = ({
                     <span className="text-white font-bold">ch12_tenali_bypass_feed.mp4</span>
                   </div>
                   <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
-                    Visual frames are synchronized with GPS location logs. Use the timeline controls below the GIS map or the play/pause button to trace road defects dynamically.
+                    Visual frames are synchronized with GPS location logs. Use the play/pause button below to trace road defects dynamically.
                   </p>
                 </div>
 

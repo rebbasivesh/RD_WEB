@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  rd_web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rd_web_frontend
+    restart: always
+    ports:
+      - "80:80"
+    environment:
+      - NODE_ENV=production

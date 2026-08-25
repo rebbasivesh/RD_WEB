@@ -114,13 +114,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={`h-full bg-[#121826] border-r border-white/5 flex flex-col shrink-0 select-none z-30 font-sans transition-all duration-300 shadow-[0_8px_32px_rgba(0,0,0,0.35)] ${
-        isCollapsed ? 'w-[72px]' : 'w-[210px]'
+        isCollapsed ? 'w-[58px]' : 'w-[180px]'
       }`}
     >
       {/* Header Panel branding */}
-      <div className="h-[60px] border-b border-white/5 flex items-center justify-between px-5 shrink-0">
+      <div className="h-[52px] border-b border-white/5 flex items-center justify-between px-3.5 shrink-0">
         {!isCollapsed ? (
-          <span className="text-[#3B82F6] font-bold text-[10.5px] tracking-[2px] uppercase font-mono">
+          <span className="text-[#3B82F6] font-bold text-[10px] tracking-[2px] uppercase font-mono">
             NIRIKSHAN
           </span>
         ) : (

@@ -374,59 +374,9 @@ export const GISMapView: React.FC = () => {
           </div>
 
           {/* Mouse coords coordinates scale */}
-          <div className="absolute bottom-14 left-3 z-10 bg-[#1A1A1A]/90 border border-[rgba(255,255,255,0.06)] px-2 py-0.5 rounded text-[8px] font-mono text-slate-450">
+          <div className="absolute bottom-3 left-3 z-10 bg-[#1A1A1A]/90 border border-[rgba(255,255,255,0.06)] px-2 py-0.5 rounded text-[8px] font-mono text-slate-450">
             <span>LAT: {cursorCoords.lat.toFixed(5)}° N</span>
             <span className="ml-3.5">LNG: {cursorCoords.lng.toFixed(5)}° E</span>
-          </div>
-
-          {/* Playback timeline slider */}
-          <div className="absolute bottom-3 left-3 right-3 z-10 bg-[#1A1A1A] border border-[rgba(255,255,255,0.06)] p-2 rounded flex items-center gap-3 text-[10px] font-mono shadow-xl">
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="p-1 bg-[#121212] hover:bg-slate-800 border border-slate-700 text-white rounded flex items-center justify-center shrink-0"
-              title="Play/Pause"
-            >
-              {isPlaying ? <Pause className="w-3.5 h-3.5 text-amber-500" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
-            </button>
-
-            <button
-              onClick={() => {
-                const next = playbackIndex > 0 ? playbackIndex - 1 : 0;
-                setPlaybackIndex(next);
-                if (mockPathCoordinates[next] && vehicleMarkerRef.current) {
-                  vehicleMarkerRef.current.setLatLng([mockPathCoordinates[next].lat, mockPathCoordinates[next].lng]);
-                }
-              }}
-              className="p-1 bg-[#121212] hover:bg-slate-800 border border-slate-700 text-slate-350 rounded"
-            >
-              <ArrowLeft className="w-3 h-3" />
-            </button>
-
-            <button
-              onClick={() => {
-                const next = playbackIndex < mockPathCoordinates.length - 1 ? playbackIndex + 1 : playbackIndex;
-                setPlaybackIndex(next);
-                if (mockPathCoordinates[next] && vehicleMarkerRef.current) {
-                  vehicleMarkerRef.current.setLatLng([mockPathCoordinates[next].lat, mockPathCoordinates[next].lng]);
-                }
-              }}
-              className="p-1 bg-[#121212] hover:bg-slate-800 border border-slate-700 text-slate-350 rounded"
-            >
-              <ArrowRight className="w-3 h-3" />
-            </button>
-
-            <div className="flex-1 flex items-center gap-2">
-              <input
-                type="range"
-                min="0"
-                max={mockPathCoordinates.length - 1}
-                value={playbackIndex}
-                onChange={handleSliderChange}
-                className="w-full h-1 bg-slate-800 rounded appearance-none cursor-pointer accent-[#3B82F6]"
-              />
-              <span className="text-slate-400 font-bold shrink-0">Frame: #{1024 + playbackIndex}</span>
-            </div>
-            <span className="text-slate-500 font-bold font-sans">Timestamp: {selectedSurvey.time}</span>
           </div>
 
         </div>

@@ -1,32 +1,39 @@
-# React + TypeScript + Vite
+# RD_WEB — Enterprise Road Survey & AI Pavement Monitoring Web Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Enterprise React + TypeScript + Vite Web Application for Edge AI Pavement Condition Analysis (DATS / Nirikshan).
 
-Currently, two official plugins are available:
+## Features
+- Interactive GIS Road Network Map & Telemetry Visualisation
+- Real-time Survey Defect Detection & Pavement Condition Scoring (PCR)
+- International Roughness Index (IRI) & Defect Breakdowns
+- Storage & Edge Device System Diagnostics
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Deployment on Edge Device (Jetson / Nvidia / Linux) using Docker
 
-## React Compiler
+### Quick Start with Docker Compose
+```bash
+# Clone the repository
+git clone https://github.com/rebbasivesh/RD_WEB.git
+cd RD_WEB
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+# Build & start the Docker container
+docker compose up -d --build
+```
+The web frontend will be running live at `http://<EDGE_DEVICE_IP>` (Port 80).
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+### Standalone Docker Build & Run
+```bash
+docker build -t rd_web:latest .
+docker run -d -p 80:80 --name rd_web_frontend rd_web:latest
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Local Development
+```bash
+npm install
+npm run dev
+```
+
+## Production Build
+```bash
+npm run build
+```

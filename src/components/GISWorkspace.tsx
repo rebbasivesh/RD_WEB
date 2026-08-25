@@ -2,18 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import {
   Layers,
-  Compass,
-  Play,
-  Pause,
-  ArrowLeft,
-  ArrowRight
+  Compass
 } from 'lucide-react';
 import { GISOverlayLayers } from './GISOverlayLayers';
 import { DefectSummaryCards } from './DefectSummaryCards';
+import { SurveySelector } from './SurveySelector';
 import type { Survey, Detection, GpsCoords } from '../types';
 
 interface GISWorkspaceProps {
+  surveys?: Survey[];
   selectedSurvey: Survey | null;
+  onSelectSurvey?: (survey: Survey) => void;
   playbackIndex: number;
   setPlaybackIndex: (index: number) => void;
   isPlaying: boolean;
@@ -35,7 +34,9 @@ function calculateBearing(start: GpsCoords, end: GpsCoords): number {
 }
 
 export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
+  surveys = [],
   selectedSurvey,
+  onSelectSurvey = () => {},
   playbackIndex,
   setPlaybackIndex,
   isPlaying,
@@ -61,7 +62,6 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
     alligator_crack: true
   });
 
-  const [isLayersOpen, setIsLayersOpen] = useState(false);
   const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number }>({ lat: 16.3500, lng: 80.6000 });
   const [mapError, setMapError] = useState<string | null>(null);
 
@@ -94,7 +94,7 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
     map.getPane('roadPane')!.style.zIndex = '401';
 
     map.createPane('routePane');
-    map.getPane('routePane')!.style.zIndex = '402';
+    map.getPane('routePane')!.style.zIndex = '405';
 
     map.createPane('detectionPane');
     map.getPane('detectionPane')!.style.zIndex = '601';
@@ -172,12 +172,12 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
     const polyCoords: [number, number][] = selectedSurvey.gpsPath.map(c => [c.lat, c.lng]);
     if (polyCoords.length === 0) return;
 
-    // 1. Cyan Survey Route Polyline with soft glow (thickness updated to 6.5px)
-    if (layersState.survey_route) {
+    // 1. Actual Survey Route Polyline from real GPS telemetry
+    if (layersState.survey_route !== false) {
       const routePoly = L.polyline(polyCoords, {
         color: '#22D3EE',
-        weight: 6.5,
-        opacity: 0.35,
+        weight: 5,
+        opacity: 0.9,
         lineCap: 'round',
         lineJoin: 'round',
         pane: 'routePane'
@@ -185,71 +185,72 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
       routePolylineRef.current = routePoly;
     }
 
-    // Fit map bounds to survey route
-    if (routePolylineRef.current) {
+    // Always fit map bounds to actual survey route coordinates
+    if (polyCoords.length >= 2) {
+      const routeBounds = L.latLngBounds(polyCoords);
       map.invalidateSize();
-      map.fitBounds(routePolylineRef.current.getBounds(), { 
+      map.fitBounds(routeBounds, { 
         padding: [45, 45],
-        maxZoom: 15
+        maxZoom: 16
       });
     }
 
-    // 2. Road Quality segments: Double path rendering (thickness updated to 6.5px core and 12px glow)
-    if (layersState.road_quality) {
-      const quarter = Math.floor(polyCoords.length / 4);
-      const colors = ['#10B981', '#EAB308', '#F59E0B', '#EF4444']; // Green: Excellent, Yellow: Good, Orange: Poor, Red: Critical
-      for (let i = 0; i < 4; i++) {
-        const startIdx = i * quarter;
-        const endIdx = Math.min((i + 1) * quarter + 1, polyCoords.length);
-        const segmentCoords = polyCoords.slice(startIdx, endIdx);
-        if (segmentCoords.length < 2) continue;
+    // 2. Real Road Quality Segments rendering (color-coded ASTM condition buffers)
+    if (layersState.road_quality !== false) {
+      const rqSegments = selectedSurvey.roadQualitySegments;
+      if (rqSegments && rqSegments.length > 0) {
+        rqSegments.forEach((seg) => {
+          const segCoords: [number, number][] = seg.coordinates.map(c => [c.lat, c.lng]);
+          if (segCoords.length < 2) return;
 
-        // Background glow
-        const glowPoly = L.polyline(segmentCoords, {
-          color: colors[i],
-          weight: 12,
-          opacity: 0.22,
-          lineCap: 'round',
-          lineJoin: 'round',
-          pane: 'roadPane'
-        }).addTo(map);
-        qualitySegmentsRef.current.push(glowPoly);
+          // Outer glowing condition buffer
+          const glowPoly = L.polyline(segCoords, {
+            color: seg.color,
+            weight: 12,
+            opacity: 0.35,
+            lineCap: 'round',
+            lineJoin: 'round',
+            pane: 'roadPane'
+          }).addTo(map);
+          qualitySegmentsRef.current.push(glowPoly);
 
-        // Foreground core line
-        const qualityPoly = L.polyline(segmentCoords, {
-          color: colors[i],
-          weight: 6.5,
-          opacity: 0.9,
-          lineCap: 'round',
-          lineJoin: 'round',
-          pane: 'roadPane'
-        }).addTo(map);
-        qualitySegmentsRef.current.push(qualityPoly);
+          // Core condition line
+          const qualityPoly = L.polyline(segCoords, {
+            color: seg.color,
+            weight: 6.5,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round',
+            pane: 'roadPane'
+          }).addTo(map);
+          qualitySegmentsRef.current.push(qualityPoly);
 
-        // Segment click popup
-        qualityPoly.on('click', (e) => {
-          const conditionLabel = i === 0 ? 'Excellent' : i === 1 ? 'Good' : i === 2 ? 'Poor' : 'Critical';
-          L.popup()
-            .setLatLng(e.latlng)
-            .setContent(`
-              <div style="font-family: monospace; font-size: 10px; background-color: #172033; color: #fff; padding: 8px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;">
-                <b>ROAD QUALITY CONDITION</b><br/>
-                SEGMENT: ${conditionLabel.toUpperCase()}<br/>
-                AVG IRI: ${selectedSurvey.avgIri.toFixed(2)} m/km
-              </div>
-            `)
-            .openOn(map);
+          // Segment click popup showing real IRI & Condition
+          qualityPoly.on('click', (e) => {
+            L.popup()
+              .setLatLng(e.latlng)
+              .setContent(`
+                <div style="font-family: monospace; font-size: 10px; background-color: #172033; color: #fff; padding: 8px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;">
+                  <b style="color: ${seg.color}">ROAD QUALITY CONDITION</b><br/>
+                  SEGMENT: #${seg.segmentNumber}<br/>
+                  CONDITION: ${seg.roadGrade.toUpperCase()}<br/>
+                  IRI ROUGHNESS: ${seg.iri.toFixed(2)} m/km
+                </div>
+              `)
+              .openOn(map);
+          });
         });
       }
     }
 
     // 3. AI Distress markers with vector SVGs and hover popups
     selectedSurvey.detections.forEach((det, idx) => {
+      const typeLower = (det.type || '').toLowerCase();
       const isTypeVisible = 
-        (det.type === 'Pothole' && layersState.potholes) ||
-        (det.type === 'Longitudinal Crack' && layersState.longitudinal_crack) ||
-        (det.type === 'Transverse Crack' && layersState.transverse_crack) ||
-        (det.type === 'Alligator Crack' && layersState.alligator_crack);
+        (typeLower.includes('pothole') && layersState.potholes !== false) ||
+        (typeLower.includes('longitudinal') && layersState.longitudinal_crack !== false) ||
+        (typeLower.includes('transverse') && layersState.transverse_crack !== false) ||
+        (typeLower.includes('alligator') && layersState.alligator_crack !== false);
 
       if (!isTypeVisible) return;
 
@@ -486,25 +487,15 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
         </div>
       )}
 
-      {/* Floating GIS Overlay Panel with premium glass effect */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2.5 items-start">
-        <button
-          onClick={() => setIsLayersOpen(!isLayersOpen)}
-          className={`w-8 h-8 rounded-lg border flex items-center justify-center shadow-2xl transition-all duration-200 ${
-            isLayersOpen 
-              ? 'bg-[#2563EB] text-white border-[#2563EB] scale-95' 
-              : 'bg-[#172033]/90 border-white/5 hover:border-white/10 hover:bg-[#172033] text-slate-400 hover:text-white'
-          }`}
-          title="Toggle layers"
-        >
-          <Layers className="w-4 h-4" />
-        </button>
-
-        {isLayersOpen && (
-          <div className="w-[230px] h-[335px] overflow-hidden bg-[#111827]/85 border border-white/5 backdrop-blur-[20px] rounded-[14px] p-[12px] shadow-glass shadow-large floating-overlay animate-in fade-in zoom-in-95 duration-200">
-            <GISOverlayLayers onToggleLayer={handleToggleLayer} />
-          </div>
-        )}
+      {/* Top Left Floating GIS Survey & Layer Selection Overlay */}
+      <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 items-start">
+        <SurveySelector
+          surveys={surveys}
+          selectedSurvey={selectedSurvey}
+          onSelectSurvey={onSelectSurvey}
+          layersState={layersState}
+          onToggleLayer={handleToggleLayer}
+        />
       </div>
 
       {/* Floating map controls with premium glass effect */}
@@ -512,13 +503,13 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
         <div className="flex flex-col bg-[#172033]/95 border border-white/5 rounded-lg overflow-hidden shadow-2xl backdrop-blur-md">
           <button 
             onClick={() => mapRef.current?.zoomIn()} 
-            className="w-8 h-8 hover:bg-white/5 text-slate-355 hover:text-white flex items-center justify-center font-mono font-bold border-b border-white/5 transition-colors"
+            className="w-8 h-8 hover:bg-white/5 text-slate-300 hover:text-white flex items-center justify-center font-mono font-bold border-b border-white/5 transition-colors"
           >
             +
           </button>
           <button 
             onClick={() => mapRef.current?.zoomOut()} 
-            className="w-8 h-8 hover:bg-white/5 text-slate-355 hover:text-white flex items-center justify-center font-mono font-bold transition-colors"
+            className="w-8 h-8 hover:bg-white/5 text-slate-300 hover:text-white flex items-center justify-center font-mono font-bold transition-colors"
           >
             -
           </button>
@@ -542,72 +533,31 @@ export const GISWorkspace: React.FC<GISWorkspaceProps> = ({
       </div>
 
       {/* Cursor coordinates scale overlay */}
-      <div className="absolute bottom-16 left-4 z-10 bg-[#172033]/90 border border-white/5 px-2.5 py-1.5 rounded-lg text-[9px] font-mono text-slate-400 select-none shadow-2xl backdrop-blur-sm">
+      <div className="absolute bottom-4 left-4 z-10 bg-[#172033]/90 border border-white/5 px-2.5 py-1.5 rounded-lg text-[9px] font-mono text-slate-400 select-none shadow-2xl backdrop-blur-sm">
         <span>LAT: {cursorCoords.lat.toFixed(6)}° N</span>
         <span className="ml-4">LNG: {cursorCoords.lng.toFixed(6)}° E</span>
       </div>
 
-      {/* Timeline playback controls bar (glowing layout and micro-transitions) */}
-      {selectedSurvey && (
-        <div className="absolute bottom-4 left-4 right-4 z-10 bg-[#172033]/92 border border-white/5 p-2.5 rounded-xl flex items-center gap-3.5 text-[10.5px] font-mono shadow-2xl floating-overlay select-none">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="w-7 h-7 bg-gis-bg hover:bg-slate-800/80 border border-white/5 text-white rounded-lg flex items-center justify-center shrink-0 transition-all duration-150 hover:scale-95"
-            title="Play/Pause Simulation"
-          >
-            {isPlaying ? <Pause className="w-3.5 h-3.5 text-warning" /> : <Play className="w-3.5 h-3.5 fill-success text-success" />}
-          </button>
-
-          <button
-            onClick={() => {
-              const next = playbackIndex > 0 ? playbackIndex - 1 : 0;
-              setPlaybackIndex(next);
-            }}
-            className="w-7 h-7 bg-gis-bg hover:bg-slate-800/80 border border-white/5 text-slate-400 hover:text-white rounded-lg flex items-center justify-center shrink-0 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={() => {
-              const next = playbackIndex < selectedSurvey.gpsPath.length - 1 ? playbackIndex + 1 : playbackIndex;
-              setPlaybackIndex(next);
-            }}
-            className="w-7 h-7 bg-gis-bg hover:bg-slate-800/80 border border-white/5 text-slate-400 hover:text-white rounded-lg flex items-center justify-center shrink-0 transition-colors"
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Scrubber slider */}
-          <div className="flex-grow flex items-center gap-3">
-            <input
-              type="range"
-              min="0"
-              max={selectedSurvey.gpsPath.length - 1}
-              value={playbackIndex}
-              onChange={(e) => setPlaybackIndex(parseInt(e.target.value))}
-              className="flex-grow h-1.5 bg-slate-900 rounded-lg appearance-none cursor-pointer accent-[#2563EB] focus:outline-none"
-            />
-            <span className="text-[#2563EB] font-bold shrink-0 text-[10.5px]">
-              FRAME #{1250 + playbackIndex}
-            </span>
-          </div>
-
-          <span className="text-slate-500 font-bold font-sans hidden sm:inline text-[9.5px]">
-            Timestamp: {selectedSurvey.date} {selectedSurvey.startTime}
-          </span>
+      {/* Unobtrusive Map Legend (Requirement 20) */}
+      <div className="absolute bottom-4 right-4 z-10 bg-[#121826]/90 border border-white/10 rounded-xl px-3 py-2 text-[9.5px] font-mono text-slate-300 backdrop-blur-md shadow-2xl flex items-center gap-3 select-none">
+        <span className="text-[8.5px] font-bold text-slate-400 uppercase font-sans tracking-wider">CONDITION</span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+          <span>GOOD (1-2)</span>
         </div>
-      )}
-
-      {/* Floating Defect Summary Cards Panel (stacked between GIS and Survey explorer list) */}
-      {selectedSurvey && (
-        <div className="absolute top-[120px] right-4 z-10 w-[145px] bg-[#172033]/70 border border-white/5 rounded-xl shadow-2xl backdrop-blur-[16px] overflow-hidden flex flex-col select-none floating-overlay">
-          <div className="text-[#3B82F6] text-[8.5px] font-bold uppercase tracking-[1.5px] font-mono py-1.5 text-center border-b border-white/5 bg-[#121826]/40">
-            Defects
-          </div>
-          <DefectSummaryCards selectedSurvey={selectedSurvey} layout="column" />
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#EAB308]" />
+          <span>FAIR (2-3)</span>
         </div>
-      )}
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+          <span>POOR (3-4)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+          <span>CRITICAL (4-5)</span>
+        </div>
+      </div>
 
     </div>
   );
