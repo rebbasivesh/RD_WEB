@@ -2,53 +2,77 @@
 
 Enterprise React + TypeScript + Vite Web Application and Authentication API Service for Edge AI Pavement Condition Analysis (DATS / Nirikshan).
 
-## Features
-- Interactive GIS Road Network Map & Telemetry Visualisation
-- User Authentication & Role-Based Access Control (RBAC)
-- Real-time Survey Defect Detection & Pavement Condition Scoring (PCR)
-- International Roughness Index (IRI) & Defect Breakdowns
-- Storage & Edge Device System Diagnostics
+## Repository Architecture
+```
+RD_WEB/
+├── frontend/             # Dedicated React + Vite + TypeScript Web Frontend
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── Dockerfile
+├── backend/              # Dedicated FastAPI Authentication & User Management Service
+│   ├── app/
+│   │   ├── api/          # auth, users, permissions, audit, health
+│   │   ├── core/         # PBKDF2 hashing, JWT signing
+│   │   └── database/     # models, schemas, database session
+│   ├── requirements.txt
+│   └── Dockerfile
+├── nginx/                # Dedicated Nginx reverse proxy configuration
+│   └── nginx.conf
+└── docker-compose.yml    # Root Docker Compose orchestrating all services
+```
 
-## Initial Default Credentials
-- **Super Admin**: `anoop.admin` / `admin123`
-- **Operator**: `sivesh.jha` / `password123`
-- **Supervisor**: `p.mandava` / `password123`
-- **Viewer**: `dg.morth` / `password123`
+---
 
-## Deployment on Edge Device (Jetson / Nvidia / Linux) using Docker
+## Edge Device Deployment Commands (Jetson / Nvidia / Linux)
 
-### Quick Start with Docker Compose (Frontend + Auth Backend)
+### Step 1: Clone Repository
+Run the following commands on the Edge Device terminal (`/home/nvidia/`):
 ```bash
-# Clone the repository
+cd /home/nvidia/
 git clone https://github.com/rebbasivesh/RD_WEB.git
 cd RD_WEB
-
-# Build & start both Web Frontend and Authentication Backend containers
-docker compose up -d --build
-```
-- Web Frontend: `http://<EDGE_DEVICE_IP>` (Port 80)
-- Auth API Backend: `http://<EDGE_DEVICE_IP>:8000/api` (Port 8000)
-
-### Manual Docker Build & Run
-```bash
-# Backend container
-cd backend
-docker build -t rd_web_backend:latest .
-docker run -d -p 8000:8000 --name rd_web_backend rd_web_backend:latest
-
-# Frontend container
-cd ..
-docker build -t rd_web_frontend:latest .
-docker run -d -p 80:80 --name rd_web_frontend rd_web_frontend:latest
 ```
 
-## Local Development
+### Step 2: Build & Launch Container Cluster
 ```bash
-# Start frontend
+sudo docker compose up -d --build
+```
+
+### Step 3: Verify Running Services
+```bash
+sudo docker ps
+```
+
+---
+
+## Live Endpoints & Default Login Credentials
+
+- **Web Application UI**: `http://<EDGE_DEVICE_IP>` (Port 80)
+- **Auth API Endpoint**: `http://<EDGE_DEVICE_IP>:8000/api` (Port 8000)
+
+### Initial System Credentials
+
+| Role | Login ID | Default Password |
+| :--- | :--- | :--- |
+| **Super Admin** | `anoop.admin` | `admin123` |
+| **Operator** | `sivesh.jha` | `password123` |
+| **Supervisor** | `p.mandava` | `password123` |
+| **Viewer** | `dg.morth` | `password123` |
+
+---
+
+## Local Development Commands
+
+### 1. Run Frontend
+```bash
+cd frontend
 npm install
 npm run dev
+```
 
-# Start backend
+### 2. Run Auth Backend
+```bash
 cd backend
 pip install -r requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
